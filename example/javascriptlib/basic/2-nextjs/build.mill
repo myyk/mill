@@ -1,0 +1,51 @@
+package build
+import mill._, javascriptlib._
+
+object web extends TypeScriptModule {
+  // These are all added as devDependencies but I don't think they should be.
+  def npmDeps = Seq(
+    "react@18.3.1",
+    "react-dom@18.3.1",
+    "next@15.0.3"
+  )
+  // TODO: How do I handle devDependencies?
+  def npmDevDeps = Seq(
+    "typescript@^5",
+    "@types/node@^20",
+    "@types/react@^18",
+    "@types/react-dom@^18"
+  )
+
+  def mainFileName = Task { s"/app/page.js" }
+
+  // TOOD: propogate this back to TypeScriptModule
+  def allSources = Task { os.walk(sources().path).filter(file => file.ext == "ts" || file.ext == "tsx").map(PathRef(_)) }
+
+  // TODO: remove later this is for quick iterations
+
+    def npmInstall = Task {
+    os.call((
+      "npm",
+      "install",
+      "--save-dev",
+      npmDevDeps() ++ transitiveNpmDeps() ++ npmDeps()
+    ))
+    
+    PathRef(Task.dest)
+  }
+}
+
+// Documentation for mill.javascriptlib
+
+/** Usage
+
+> mill web.run
+Hello James Bond Professor
+
+> mill show qux.bundle
+".../out/qux/bundle.dest/bundle.js"
+
+> node out/qux/bundle.dest/bundle.js James Bond prof
+Hello James Bond Professor
+
+*/

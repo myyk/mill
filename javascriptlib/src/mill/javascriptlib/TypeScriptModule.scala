@@ -6,6 +6,12 @@ trait TypeScriptModule extends Module {
 
   def npmDeps: T[Seq[String]] = Task { Seq.empty[String] }
 
+  def npmDevDeps: T[Seq[String]] = Task { Seq(
+    "typescript@5.6.3",
+    "@types/node@22.7.8",
+    "esbuild@0.24.0"
+  ) }
+
   def transitiveNpmDeps: T[Seq[String]] = Task {
     Task.traverse(moduleDeps)(_.npmDeps)().flatten ++ npmDeps()
   }
@@ -15,16 +21,20 @@ trait TypeScriptModule extends Module {
       "npm",
       "install",
       "--save-dev",
-      "typescript@5.6.3",
-      "@types/node@22.7.8",
-      "esbuild@0.24.0",
-      transitiveNpmDeps()
+      npmDevDeps() ++ transitiveNpmDeps()
+    ))
+    os.call((
+      "npm",
+      "install",
+      npmDeps()
     ))
     PathRef(Task.dest)
   }
 
   def sources = Task.Source(millSourcePath / "src")
-  def allSources = Task { os.walk(sources().path).filter(_.ext == "ts").map(PathRef(_)) }
+  def allSources = Task { os.walk(sources().path).filter(file => file.ext == "ts" || file.ext == "tsx" || file.ext == ".d.ts").map(PathRef(_)) }
+
+  def tscArgs = Task { Seq.empty[String] }
 
   def compile: T[(PathRef, PathRef)] = Task {
     val nodeTypes = npmInstall().path / "node_modules/@types"
@@ -42,16 +52,36 @@ trait TypeScriptModule extends Module {
       ujson.Obj(
         "compilerOptions" -> ujson.Obj(
           "outDir" -> javascriptOut.toString,
-          "declaration" -> true,
-          "declarationDir" -> declarationsOut.toString,
+//          "declaration" -> true,
+//          "declarationDir" -> declarationsOut.toString,
           "typeRoots" -> ujson.Arr(nodeTypes.toString),
-          "paths" -> ujson.Obj.from(allPaths.map { case (k, v) => (k, ujson.Arr(s"$v/*")) })
+          "paths" -> ujson.Obj.from(allPaths.map { case (k, v) => (k, ujson.Arr(s"$v/*")) }),
+          // TODO: These should be configurable
+          "target" -> "ES2017",
+          "lib" -> ujson.Arr("dom", "dom.iterable", "esnext"),
+          "plugins" -> ujson.Arr(ujson.Obj(
+            "name" -> "next"
+          )),
+          "allowJs" -> true,
+          "skipLibCheck" -> true,
+          "strict" -> true,
+          "noEmit" -> true,
+          "esModuleInterop" -> true,
+          "module" -> "esnext",
+          "moduleResolution" -> "bundler",
+          "resolveJsonModule" -> true,
+          "isolatedModules" -> true,
+          "jsx" -> "preserve",
+          "incremental" -> true,
+          "paths" -> ujson.Obj(
+            "@/*" -> ujson.Arr("./src/*") // FIXME: this must be wrong since it should be relative to somewhere in the target, I think
+          )
         ),
         "files" -> allSources().map(_.path.toString)
       )
     )
 
-    os.call((npmInstall().path / "node_modules/typescript/bin/tsc"))
+    os.call((npmInstall().path / "node_modules/typescript/bin/tsc", tscArgs()))
 
     (PathRef(javascriptOut), PathRef(declarationsOut))
   }
