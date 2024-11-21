@@ -3,31 +3,35 @@ import mill._, javascriptlib._
 
 object web extends TypeScriptModule {
   // These are all added as devDependencies but I don't think they should be.
-  def npmDeps = Seq(
+  def npmDeps: T[Seq[String]] = Task {Seq(
     "react@^18",
     "react-dom@^18",
     "next@^15.0.3"
-  )
+  )}
   // TODO: How do I handle devDependencies?
-  def npmDevDeps = Seq(
+  def npmDevDeps: T[Seq[String]] = Task {Seq(
     "typescript@^5",
     "@types/node@^20",
     "@types/react@^18",
     "@types/react-dom@^18"
-  )
+  )}
+
+  def transitiveNpmDeps: T[Seq[String]] = Task {
+    Task.traverse(moduleDeps)(_.npmDeps)().flatten
+  }
 
   // TODO: remove this
   def npmInstall = Task {
     os.call((
       "npm",
       "install",
-      npmDeps()
+      npmDeps() ++ transitiveNpmDeps()
     ))
     os.call((
       "npm",
       "install",
       "--save-dev",
-      npmDevDeps() ++ transitiveNpmDeps()
+      npmDevDeps()
     ))
     PathRef(Task.dest)
   }
