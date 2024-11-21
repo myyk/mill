@@ -4,9 +4,9 @@ import mill._, javascriptlib._
 object web extends TypeScriptModule {
   // These are all added as devDependencies but I don't think they should be.
   def npmDeps = Seq(
-    "react@18.3.1",
-    "react-dom@18.3.1",
-    "next@15.0.3"
+    "react@^18",
+    "react-dom@^18",
+    "next@^15.0.3"
   )
   // TODO: How do I handle devDependencies?
   def npmDevDeps = Seq(
@@ -16,22 +16,40 @@ object web extends TypeScriptModule {
     "@types/react-dom@^18"
   )
 
+  // TODO: remove this
+  def npmInstall = Task {
+    os.call((
+      "npm",
+      "install",
+      npmDeps()
+    ))
+    os.call((
+      "npm",
+      "install",
+      "--save-dev",
+      npmDevDeps() ++ transitiveNpmDeps()
+    ))
+    PathRef(Task.dest)
+  }
+
   def mainFileName = Task { s"/app/page.js" }
 
   // TOOD: propogate this back to TypeScriptModule
   def allSources = Task { os.walk(sources().path).filter(file => file.ext == "ts" || file.ext == "tsx").map(PathRef(_)) }
 
-  // TODO: remove later this is for quick iterations
+  def allFiles = Task.Source(millSourcePath)
 
-    def npmInstall = Task {
-    os.call((
-      "npm",
-      "install",
-      "--save-dev",
-      npmDevDeps() ++ transitiveNpmDeps() ++ npmDeps()
-    ))
-    
-    PathRef(Task.dest)
+  def run(args: mill.define.Args) = Task.Command {
+    os.copy(allFiles().path, Task.dest, mergeFolders = true)
+
+    os.call((npmInstall().path / "node_modules/.bin/next", "dev"))
+  }
+
+  def build(args: mill.define.Args) = Task.Command {
+    os.copy(allFiles().path, Task.dest, mergeFolders = true)
+    os.copy(npmInstall().path, Task.dest, mergeFolders = true) // TODO: maybe can not do this later
+
+    os.call((npmInstall().path / "node_modules/.bin/next", "build"))
   }
 }
 
