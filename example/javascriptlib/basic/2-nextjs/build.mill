@@ -52,8 +52,13 @@ object web extends TypeScriptModule {
   def build(args: mill.define.Args) = Task.Command {
     os.copy(allFiles().path, Task.dest, mergeFolders = true)
     os.copy(npmInstall().path, Task.dest, mergeFolders = true) // TODO: maybe can not do this later
+    // Something is wrong with the copy, I found deleting it and recreating it can make it work, but this is def a wrong thing to do.
+    os.remove.all(Task.dest / "node_modules")
+    os.call(("npm", "install"))
 
-    os.call((npmInstall().path / "node_modules/.bin/next", "build"))
+    os.call((Task.dest / "node_modules/.bin/next", "build"))
+
+    PathRef(Task.dest / ".next")
   }
 }
 
