@@ -20,22 +20,6 @@ object web extends TypeScriptModule {
     Task.traverse(moduleDeps)(_.npmDeps)().flatten
   }
 
-  // TODO: remove this
-  def npmInstall = Task {
-    os.call((
-      "npm",
-      "install",
-      npmDeps() ++ transitiveNpmDeps()
-    ))
-    os.call((
-      "npm",
-      "install",
-      "--save-dev",
-      npmDevDeps()
-    ))
-    PathRef(Task.dest)
-  }
-
   def mainFileName = Task { s"/app/page.js" }
 
   // TOOD: propogate this back to TypeScriptModule
@@ -53,9 +37,10 @@ object web extends TypeScriptModule {
   // This is used for making live updates, so needs to look at source folder
   def dev(args: mill.define.Args) = Task.Command {
     os.remove.all(millSourcePath / "node_modules")
+    os.remove.all(millSourcePath / "tsconfig.json")
     os.copy(npmInstall().path / "node_modules", millSourcePath / "node_modules", followLinks = false)
 
-    os.call((millSourcePath / "node_modules/.bin/next", "dev", millSourcePath), stdout = os.Inherit)
+    os.call((millSourcePath / "node_modules/.bin/next", "dev", millSourcePath), stdin = os.Inherit, stdout = os.Inherit)
   }
 
   def build(args: mill.define.Args) = Task.Command {

@@ -13,20 +13,24 @@ trait TypeScriptModule extends Module {
   ) }
 
   def transitiveNpmDeps: T[Seq[String]] = Task {
-    Task.traverse(moduleDeps)(_.npmDeps)().flatten ++ npmDeps()
+    Task.traverse(moduleDeps)(_.npmDeps)().flatten
+  }
+
+  def transitiveNpmDevDeps: T[Seq[String]] = Task {
+    Task.traverse(moduleDeps)(_.npmDevDeps)().flatten
   }
 
   def npmInstall = Task {
     os.call((
       "npm",
       "install",
-      "--save-dev",
-      npmDevDeps() ++ transitiveNpmDeps()
+      npmDeps() ++ transitiveNpmDeps()
     ))
     os.call((
       "npm",
       "install",
-      npmDeps()
+      "--save-dev",
+      npmDevDeps() ++ transitiveNpmDevDeps()
     ))
     PathRef(Task.dest)
   }
