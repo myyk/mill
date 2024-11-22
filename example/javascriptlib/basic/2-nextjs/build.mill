@@ -22,16 +22,13 @@ object web extends TypeScriptModule {
 
   def mainFileName = Task { s"/app/page.js" }
 
-  // TOOD: propogate this back to TypeScriptModule
-  def allSources = Task { os.walk(sources().path).filter(file => file.ext == "ts" || file.ext == "tsx").map(PathRef(_)) }
-
   def allFiles = Task.Source(millSourcePath)
 
   def run(args: mill.define.Args) = Task.Command {
     os.copy(npmInstall().path / "node_modules", Task.dest / "node_modules", followLinks = false)
     os.copy(build0().path, Task.dest / ".next", followLinks = false)
 
-    os.call((Task.dest / "node_modules/.bin/next", "start"), stdout = os.Inherit)
+    os.call((Task.dest / "node_modules/.bin/next", "start"), stdin = os.Inherit, stdout = os.Inherit)
   }
 
   // This is used for making live updates, so needs to look at source folder
