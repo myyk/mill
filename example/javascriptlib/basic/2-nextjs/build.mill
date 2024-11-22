@@ -46,6 +46,7 @@ object web extends TypeScriptModule {
 
   def build0 = Task {
     os.copy(allFiles().path, Task.dest, mergeFolders = true)
+    os.remove.all(Task.dest / "node_modules")
     os.copy(npmInstall().path / "node_modules", Task.dest / "node_modules", followLinks = false)
 
     os.call((Task.dest / "node_modules/.bin/next", "build"), stdout = os.Inherit)
@@ -58,13 +59,7 @@ object web extends TypeScriptModule {
 
 /** Usage
 
-> mill web.run
-Hello James Bond Professor
-
-> mill show qux.bundle
-".../out/qux/bundle.dest/bundle.js"
-
-> node out/qux/bundle.dest/bundle.js James Bond prof
-Hello James Bond Professor
+> mill web.build | grep 'prerendered as static content'
+○  (Static)  prerendered as static content
 
 */
