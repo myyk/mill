@@ -20,6 +20,10 @@ trait TypeScriptModule extends Module {
     Task.traverse(moduleDeps)(_.npmDevDeps)().flatten
   }
 
+  def install = Task {
+    PathRef(nodeModulesInModuleRoot().path)
+  }
+
   def npmInstall = Task {
     os.call((
       "npm",
@@ -32,7 +36,18 @@ trait TypeScriptModule extends Module {
       "--save-dev",
       npmDevDeps() ++ transitiveNpmDevDeps()
     ))
+
     PathRef(Task.dest)
+  }
+
+  def nodeModulesInModuleRoot = Task {
+    val installPath = npmInstall().path
+
+    // Copy the node_modules to the source path so that IDE can find the types. Other tasks are able to depend on this.
+    // Remove the old node_modules because this is a common thing to do in the JS world, also if the user did it manually, it won't repopulate if the task is cached.
+    os.remove.all(millSourcePath / "node_modules")
+    os.copy(installPath / "node_modules", millSourcePath / "node_modules", followLinks = false)
+    PathRef(installPath)
   }
 
   def sources = Task.Source(millSourcePath / "src")
@@ -41,7 +56,7 @@ trait TypeScriptModule extends Module {
   def tscArgs = Task { Seq.empty[String] }
 
   def compile: T[(PathRef, PathRef)] = Task {
-    val nodeTypes = npmInstall().path / "node_modules/@types"
+    val nodeTypes = install().path / "node_modules/@types"
     val javascriptOut = Task.dest / "javascript"
     val declarationsOut = Task.dest / "declarations"
 
@@ -49,7 +64,7 @@ trait TypeScriptModule extends Module {
       for (((jsDir, dTsDir), mod) <- Task.traverse(moduleDeps)(_.compile)().zip(moduleDeps))
         yield (mod.millSourcePath.subRelativeTo(Task.workspace).toString + "/*", dTsDir.path)
 
-    val allPaths = upstreamPaths ++ Seq("*" -> sources().path, "*" -> npmInstall().path)
+    val allPaths = upstreamPaths ++ Seq("*" -> sources().path, "*" -> install().path)
 
     os.write(
       Task.dest / "tsconfig.json",
@@ -85,7 +100,7 @@ trait TypeScriptModule extends Module {
       )
     )
 
-    os.call((npmInstall().path / "node_modules/typescript/bin/tsc", tscArgs()))
+    os.call((install().path / "node_modules/typescript/bin/tsc", tscArgs()))
 
     (PathRef(javascriptOut), PathRef(declarationsOut))
   }
@@ -98,7 +113,7 @@ trait TypeScriptModule extends Module {
       os.copy(jsDir.path, Task.dest / mod.millSourcePath.subRelativeTo(Task.workspace))
     }
     val mainFile = compile()._1.path / mainFileName()
-    val env = Map("NODE_PATH" -> Seq(".", compile()._1.path, npmInstall().path).mkString(":"))
+    val env = Map("NODE_PATH" -> Seq(".", compile()._1.path, install().path).mkString(":"))
     (mainFile, env)
   }
 
@@ -109,7 +124,7 @@ trait TypeScriptModule extends Module {
 
   def bundle = Task {
     val (mainFile, env) = prepareRun()
-    val esbuild = npmInstall().path / "node_modules/esbuild/bin/esbuild"
+    val esbuild = install().path / "node_modules/esbuild/bin/esbuild"
     val bundle = Task.dest / "bundle.js"
     os.call((esbuild, mainFile, "--bundle", s"--outfile=$bundle"), env = env)
     PathRef(bundle)

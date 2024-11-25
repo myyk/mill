@@ -16,16 +16,11 @@ object web extends TypeScriptModule {
     "@types/react-dom@^18"
   )}
 
-  def transitiveNpmDeps: T[Seq[String]] = Task {
-    Task.traverse(moduleDeps)(_.npmDeps)().flatten
-  }
-
   def mainFileName = Task { s"/app/page.js" }
 
   def allFiles = Task.Source(millSourcePath)
 
   def run(args: mill.define.Args) = Task.Command {
-    os.copy(npmInstall().path / "node_modules", Task.dest / "node_modules", followLinks = false)
     os.copy(build0().path, Task.dest / ".next", followLinks = false)
 
     os.call((Task.dest / "node_modules/.bin/next", "start"), stdin = os.Inherit, stdout = os.Inherit)
@@ -33,9 +28,8 @@ object web extends TypeScriptModule {
 
   // This is used for making live updates, so needs to look at source folder
   def dev(args: mill.define.Args) = Task.Command {
-    os.remove.all(millSourcePath / "node_modules")
+    install()
     os.remove.all(millSourcePath / "tsconfig.json")
-    os.copy(npmInstall().path / "node_modules", millSourcePath / "node_modules", followLinks = false)
 
     os.call((millSourcePath / "node_modules/.bin/next", "dev", millSourcePath), stdin = os.Inherit, stdout = os.Inherit)
   }
@@ -44,10 +38,9 @@ object web extends TypeScriptModule {
     build0()
   }
 
-  def build0 = Task {
+  def build0 = Task {    
     os.copy(allFiles().path, Task.dest, mergeFolders = true)
-    os.remove.all(Task.dest / "node_modules")
-    os.copy(npmInstall().path / "node_modules", Task.dest / "node_modules", followLinks = false)
+    os.copy(install().path / "node_modules", Task.dest / "node_modules", followLinks = false)
 
     os.call((Task.dest / "node_modules/.bin/next", "build"), stdout = os.Inherit)
 
